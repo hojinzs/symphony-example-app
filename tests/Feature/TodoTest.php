@@ -41,6 +41,16 @@ test('todo title is required', function () {
     $response->assertSessionHasErrors('title');
 });
 
+test('todo title may not exceed 255 characters', function () {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('todos.store'), [
+        'title' => str_repeat('a', 256),
+    ]);
+
+    $response->assertSessionHasErrors('title');
+});
+
 test('users can toggle a todo', function () {
     $user = User::factory()->create();
     $todo = Todo::factory()->for($user)->create(['is_completed' => false]);
