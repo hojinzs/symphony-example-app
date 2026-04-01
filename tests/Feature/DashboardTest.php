@@ -2,7 +2,6 @@
 
 use App\Models\Todo;
 use App\Models\User;
-use Illuminate\Support\Collection;
 use Inertia\Testing\AssertableInertia as Assert;
 
 test('guests are redirected to the login page', function () {
@@ -69,12 +68,14 @@ test('dashboard shows the authenticated users five most recent todos', function 
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('dashboard')
-            ->where('recentTodos', function (Collection $recentTodos) use ($expectedTitles) {
-                expect($recentTodos)->toHaveCount(5);
-                expect($recentTodos->pluck('title')->all())->toBe($expectedTitles);
-                expect($recentTodos->pluck('title')->all())->not->toContain('Oldest todo', 'Other user todo');
-                expect($recentTodos->get(3)['is_completed'])->toBeTrue();
-                expect($recentTodos->get(0)['created_at'])->not->toBeNull();
+            ->where('recentTodos', function ($recentTodos) use ($expectedTitles) {
+                $recentTodoCollection = collect($recentTodos);
+
+                expect($recentTodoCollection)->toHaveCount(5);
+                expect($recentTodoCollection->pluck('title')->all())->toBe($expectedTitles);
+                expect($recentTodoCollection->pluck('title')->all())->not->toContain('Oldest todo', 'Other user todo');
+                expect($recentTodoCollection->get(3)['is_completed'])->toBeTrue();
+                expect($recentTodoCollection->get(0)['created_at'])->not->toBeNull();
 
                 return true;
             })

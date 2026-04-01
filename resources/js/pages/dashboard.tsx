@@ -18,7 +18,12 @@ type RecentTodo = {
     created_at: string | null;
 };
 
-const createdAtFormatter = new Intl.DateTimeFormat('ko-KR', {
+const appLocale =
+    (typeof document !== 'undefined' && document.documentElement.lang) ||
+    (typeof navigator !== 'undefined' && navigator.language) ||
+    'en';
+
+const createdAtFormatter = new Intl.DateTimeFormat(appLocale, {
     dateStyle: 'medium',
     timeStyle: 'short',
 });
@@ -36,6 +41,8 @@ export default function Dashboard({
 }: {
     recentTodos: RecentTodo[];
 }) {
+    const todosIndexUrl = todosIndex.url();
+
     return (
         <>
             <Head title="Dashboard" />
@@ -66,7 +73,7 @@ export default function Dashboard({
                                 recentTodos.map((todo) => (
                                     <Link
                                         key={todo.id}
-                                        href={`${todosIndex()}#todo-${todo.id}`}
+                                        href={`${todosIndexUrl}#todo-${todo.id}`}
                                         className="block rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                                         prefetch
                                     >
