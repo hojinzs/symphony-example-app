@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\TodoAction;
+use App\Http\Requests\StoreTodoRequest;
+use App\Http\Requests\ToggleTodoRequest;
 use App\Models\Todo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -11,6 +14,8 @@ use Inertia\Response;
 
 class TodoController extends Controller
 {
+    public function __construct(private TodoAction $todoAction) {}
+
     public function index(Request $request): Response
     {
         return Inertia::render('todos/index', [
@@ -21,33 +26,25 @@ class TodoController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(StoreTodoRequest $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'title' => ['required', 'string', 'max:255'],
-        ]);
-
-        $request->user()->todos()->create($validated);
+        $this->todoAction->store($request->user(), $request->validated());
 
         return back();
     }
 
-    public function update(Request $request, Todo $todo): RedirectResponse
+    public function update(ToggleTodoRequest $request, Todo $todo): RedirectResponse
     {
-        Gate::authorize('update', $todo);
-
-        $todo->update([
-            'is_completed' => ! $todo->is_completed,
-        ]);
+        $this->todoAction->toggle($todo);
 
         return back();
     }
 
-    public function destroy(Request $request, Todo $todo): RedirectResponse
+    public function destroy(Todo $todo): RedirectResponse
     {
         Gate::authorize('delete', $todo);
 
-        $todo->delete();
+        $this->todoAction->delete($todo);
 
         return back();
     }

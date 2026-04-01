@@ -8,6 +8,20 @@ test('guests are redirected to the login page', function () {
     $response->assertRedirect(route('login'));
 });
 
+test('guests cannot create, update, or delete todos', function () {
+    $todo = Todo::factory()->create();
+
+    $this->post(route('todos.store'), [
+        'title' => 'Buy groceries',
+    ])->assertRedirect(route('login'));
+
+    $this->patch(route('todos.update', $todo))
+        ->assertRedirect(route('login'));
+
+    $this->delete(route('todos.destroy', $todo))
+        ->assertRedirect(route('login'));
+});
+
 test('authenticated users can view todos', function () {
     $user = User::factory()->create();
 
@@ -41,6 +55,16 @@ test('todo title is required', function () {
     $response->assertSessionHasErrors('title');
 });
 
+test('todo title may not exceed 255 characters', function () {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('todos.store'), [
+        'title' => str_repeat('a', 256),
+    ]);
+
+    $response->assertSessionHasErrors('title');
+});
+
 test('users can toggle a todo', function () {
     $user = User::factory()->create();
     $todo = Todo::factory()->for($user)->create(['is_completed' => false]);
@@ -49,6 +73,16 @@ test('users can toggle a todo', function () {
 
     $response->assertRedirect();
     expect($todo->fresh()->is_completed)->toBeTrue();
+});
+
+test('users can toggle a completed todo back to incomplete', function () {
+    $user = User::factory()->create();
+    $todo = Todo::factory()->for($user)->completed()->create();
+
+    $response = $this->actingAs($user)->patch(route('todos.update', $todo));
+
+    $response->assertRedirect();
+    expect($todo->fresh()->is_completed)->toBeFalse();
 });
 
 test('users can delete a todo', function () {
@@ -64,11 +98,12 @@ test('users can delete a todo', function () {
 test('users cannot update another users todo', function () {
     $user = User::factory()->create();
     $otherUser = User::factory()->create();
-    $todo = Todo::factory()->for($otherUser)->create();
+    $todo = Todo::factory()->for($otherUser)->create(['is_completed' => false]);
 
     $response = $this->actingAs($user)->patch(route('todos.update', $todo));
 
     $response->assertForbidden();
+    expect($todo->fresh()->is_completed)->toBeFalse();
 });
 
 test('users cannot delete another users todo', function () {
@@ -79,4 +114,5 @@ test('users cannot delete another users todo', function () {
     $response = $this->actingAs($user)->delete(route('todos.destroy', $todo));
 
     $response->assertForbidden();
+    $this->assertModelExists($todo);
 });
