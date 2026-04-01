@@ -6,7 +6,7 @@ use App\Models\Todo;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
-class ToggleTodoRequest extends FormRequest
+class UpdateTodoRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -16,13 +16,23 @@ class ToggleTodoRequest extends FormRequest
         return $this->user()?->can('update', $todo) ?? false;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('title')) {
+            $this->merge([
+                'title' => trim((string) $this->input('title')),
+            ]);
+        }
+    }
+
     /**
-     * Get the validation rules that apply to the request.
-     *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
-        return [];
+        return [
+            'is_completed' => ['sometimes', 'boolean'],
+            'title' => ['sometimes', 'required', 'string', 'max:255'],
+        ];
     }
 }

@@ -2,27 +2,31 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\GetTodosAction;
 use App\Actions\TodoAction;
+use App\Http\Requests\IndexTodoRequest;
 use App\Http\Requests\StoreTodoRequest;
-use App\Http\Requests\ToggleTodoRequest;
+use App\Http\Requests\UpdateTodoRequest;
 use App\Models\Todo;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class TodoController extends Controller
 {
-    public function __construct(private TodoAction $todoAction) {}
+    public function __construct(
+        private GetTodosAction $getTodosAction,
+        private TodoAction $todoAction,
+    ) {}
 
-    public function index(Request $request): Response
+    public function index(IndexTodoRequest $request): Response
     {
+        $filters = $request->filters();
+
         return Inertia::render('todos/index', [
-            'todos' => $request->user()
-                ->todos()
-                ->latest()
-                ->get(),
+            'filters' => $filters,
+            'todos' => $this->getTodosAction->handle($request->user(), $filters),
         ]);
     }
 
@@ -33,9 +37,9 @@ class TodoController extends Controller
         return back();
     }
 
-    public function update(ToggleTodoRequest $request, Todo $todo): RedirectResponse
+    public function update(UpdateTodoRequest $request, Todo $todo): RedirectResponse
     {
-        $this->todoAction->toggle($todo);
+        $this->todoAction->update($todo, $request->validated());
 
         return back();
     }
