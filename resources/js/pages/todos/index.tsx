@@ -284,10 +284,7 @@ export default function TodosIndex({
                     )}
 
                     {todos.map((todo) => (
-                        <div
-                            key={todo.id}
-                            className="rounded-2xl border bg-card/60 p-4 shadow-xs"
-                        >
+                        <div key={todo.id} className="rounded-2xl border bg-card/60 p-4 shadow-xs">
                             <div className="flex items-start gap-3">
                                 <Checkbox
                                     checked={todo.is_completed}

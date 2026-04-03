@@ -138,6 +138,20 @@ test('todo title is required when updating', function () {
     expect($todo->fresh()->title)->toBe('Original title');
 });
 
+test('users cannot send an empty todo update', function () {
+    $user = User::factory()->create();
+    $todo = Todo::factory()->for($user)->create([
+        'title' => 'Original title',
+        'is_completed' => false,
+    ]);
+
+    $response = $this->actingAs($user)->patch(route('todos.update', $todo), []);
+
+    $response->assertSessionHasErrors('title');
+    expect($todo->fresh()->title)->toBe('Original title')
+        ->and($todo->fresh()->is_completed)->toBeFalse();
+});
+
 test('users can delete a todo', function () {
     $user = User::factory()->create();
     $todo = Todo::factory()->for($user)->create();
