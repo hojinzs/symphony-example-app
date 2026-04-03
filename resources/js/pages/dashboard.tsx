@@ -8,15 +8,9 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import type { DashboardProps, TodoWithCreatedAt } from '@/types';
 import { dashboard } from '@/routes';
 import { index as todosIndex } from '@/routes/todos';
-
-type RecentTodo = {
-    id: number;
-    title: string;
-    is_completed: boolean;
-    created_at: string | null;
-};
 
 const appLocale =
     (typeof document !== 'undefined' && document.documentElement.lang) ||
@@ -28,7 +22,7 @@ const createdAtFormatter = new Intl.DateTimeFormat(appLocale, {
     timeStyle: 'short',
 });
 
-function formatCreatedAt(createdAt: string | null) {
+function formatCreatedAt(createdAt: TodoWithCreatedAt['created_at']) {
     if (!createdAt) {
         return 'Created time unavailable';
     }
@@ -36,11 +30,7 @@ function formatCreatedAt(createdAt: string | null) {
     return createdAtFormatter.format(new Date(createdAt));
 }
 
-export default function Dashboard({
-    recentTodos,
-}: {
-    recentTodos: RecentTodo[];
-}) {
+export default function Dashboard({ recentTodos }: DashboardProps) {
     const todosIndexUrl = todosIndex.url();
 
     return (

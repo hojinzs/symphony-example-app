@@ -76,6 +76,12 @@ test('dashboard shows the authenticated users five most recent todos', function 
                 expect($recentTodoCollection->pluck('title')->all())->not->toContain('Oldest todo', 'Other user todo');
                 expect($recentTodoCollection->get(3)['is_completed'])->toBeTrue();
                 expect($recentTodoCollection->get(0)['created_at'])->not->toBeNull();
+                expect($recentTodoCollection->first())->toHaveKeys([
+                    'id',
+                    'title',
+                    'is_completed',
+                    'created_at',
+                ]);
 
                 return true;
             })

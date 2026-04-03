@@ -45,9 +45,17 @@ test('authenticated users can view todos', function () {
             ->where('filters.search', null)
             ->where('filters.sort', 'latest')
             ->where('filters.status', 'all')
+            ->where('todos.0', [
+                'id' => $latestTodo->id,
+                'title' => $latestTodo->title,
+                'is_completed' => $latestTodo->is_completed,
+            ])
+            ->where('todos.1', [
+                'id' => $oldestTodo->id,
+                'title' => $oldestTodo->title,
+                'is_completed' => $oldestTodo->is_completed,
+            ])
             ->has('todos', 2)
-            ->where('todos.0.title', $latestTodo->title)
-            ->where('todos.1.title', $oldestTodo->title),
         );
 });
 
