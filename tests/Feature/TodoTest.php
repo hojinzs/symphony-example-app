@@ -86,6 +86,21 @@ test('todo title may not exceed 255 characters', function () {
     $response->assertSessionHasErrors('title');
 });
 
+test('users can create multiple todos with the same title', function () {
+    $user = User::factory()->create();
+    $title = 'Buy groceries';
+
+    $this->actingAs($user)->post(route('todos.store'), [
+        'title' => $title,
+    ])->assertRedirect();
+
+    $this->actingAs($user)->post(route('todos.store'), [
+        'title' => $title,
+    ])->assertRedirect();
+
+    expect($user->todos()->where('title', $title)->count())->toBe(2);
+});
+
 test('users can toggle a todo', function () {
     $user = User::factory()->create();
     $todo = Todo::factory()->for($user)->create(['is_completed' => false]);
@@ -108,6 +123,33 @@ test('users can toggle a completed todo back to incomplete', function () {
 
     $response->assertRedirect();
     expect($todo->fresh()->is_completed)->toBeFalse();
+});
+
+test('completed todos remain completed when the same completion state is submitted again', function () {
+    $user = User::factory()->create();
+    $todo = Todo::factory()->for($user)->completed()->create();
+
+    $response = $this->actingAs($user)->patch(route('todos.update', $todo), [
+        'is_completed' => true,
+    ]);
+
+    $response->assertRedirect();
+    expect($todo->fresh()->is_completed)->toBeTrue();
+});
+
+test('duplicate completion requests keep a todo completed', function () {
+    $user = User::factory()->create();
+    $todo = Todo::factory()->for($user)->create(['is_completed' => false]);
+
+    $this->actingAs($user)->patch(route('todos.update', $todo), [
+        'is_completed' => true,
+    ])->assertRedirect();
+
+    $this->actingAs($user)->patch(route('todos.update', $todo), [
+        'is_completed' => true,
+    ])->assertRedirect();
+
+    expect($todo->fresh()->is_completed)->toBeTrue();
 });
 
 test('users can update a todo title', function () {
@@ -160,6 +202,19 @@ test('users can delete a todo', function () {
 
     $response->assertRedirect();
     $this->assertDatabaseMissing('todos', ['id' => $todo->id]);
+});
+
+test('duplicate delete requests remove a todo only once', function () {
+    $user = User::factory()->create();
+    $todo = Todo::factory()->for($user)->create();
+
+    $this->actingAs($user)->delete(route('todos.destroy', $todo))
+        ->assertRedirect();
+
+    $this->assertDatabaseMissing('todos', ['id' => $todo->id]);
+
+    $this->actingAs($user)->delete(route('todos.destroy', $todo))
+        ->assertNotFound();
 });
 
 test('users cannot update another users todo', function () {
