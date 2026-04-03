@@ -26,7 +26,15 @@ class TodoController extends Controller
 
         return Inertia::render('todos/index', [
             'filters' => $filters,
-            'todos' => $this->getTodosAction->handle($request->user(), $filters),
+            'todos' => $this->getTodosAction
+                ->handle($request->user(), $filters)
+                ->map(fn (Todo $todo): array => [
+                    'id' => $todo->id,
+                    'title' => $todo->title,
+                    'is_completed' => $todo->is_completed,
+                ])
+                ->values()
+                ->all(),
         ]);
     }
 

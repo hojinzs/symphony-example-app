@@ -16,19 +16,14 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import type {
+    StoreTodoRequestData,
+    Todo,
+    TodoFilters,
+    TodosIndexProps,
+    UpdateTodoRequestData,
+} from '@/types';
 import { index } from '@/routes/todos';
-
-type Todo = {
-    id: number;
-    title: string;
-    is_completed: boolean;
-};
-
-type TodoFilters = {
-    search: string | null;
-    sort: 'latest' | 'oldest' | 'alphabetical';
-    status: 'all' | 'active' | 'completed';
-};
 
 const defaultFilters: TodoFilters = {
     search: '',
@@ -36,17 +31,19 @@ const defaultFilters: TodoFilters = {
     status: 'all',
 };
 
-export default function TodosIndex({
-    filters,
-    todos,
-}: {
-    filters: TodoFilters;
-    todos: Todo[];
-}) {
-    const createForm = useForm({
+function toFilterPayload(filters: TodoFilters) {
+    return {
+        search: filters.search,
+        sort: filters.sort,
+        status: filters.status,
+    };
+}
+
+export default function TodosIndex({ filters, todos }: TodosIndexProps) {
+    const createForm = useForm<StoreTodoRequestData>({
         title: '',
     });
-    const editForm = useForm({
+    const editForm = useForm<UpdateTodoRequestData>({
         title: '',
     });
     const [activeFilters, setActiveFilters] = useState<TodoFilters>({
@@ -66,7 +63,7 @@ export default function TodosIndex({
     function applyFilters(nextFilters: TodoFilters) {
         setActiveFilters(nextFilters);
 
-        router.get(index(), nextFilters, {
+        router.get(index(), toFilterPayload(nextFilters), {
             preserveScroll: true,
             preserveState: true,
             replace: true,
