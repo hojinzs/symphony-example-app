@@ -2,6 +2,7 @@
 
 use App\Models\Todo;
 use App\Models\User;
+use Inertia\Testing\AssertableInertia as Assert;
 
 test('guests are redirected to the login page', function () {
     $response = $this->get(route('todos.index'));
@@ -24,10 +25,30 @@ test('guests cannot create, update, or delete todos', function () {
 
 test('authenticated users can view todos', function () {
     $user = User::factory()->create();
+    $oldestTodo = Todo::factory()->for($user)->create([
+        'title' => 'First todo',
+        'created_at' => now()->subDays(2),
+    ]);
+    $latestTodo = Todo::factory()->for($user)->create([
+        'title' => 'Latest todo',
+        'created_at' => now(),
+    ]);
+    Todo::factory()->create([
+        'title' => 'Another user todo',
+    ]);
 
-    $response = $this->actingAs($user)->get(route('todos.index'));
-
-    $response->assertOk();
+    $this->actingAs($user)
+        ->get(route('todos.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('todos/index')
+            ->where('filters.search', null)
+            ->where('filters.sort', 'latest')
+            ->where('filters.status', 'all')
+            ->has('todos', 2)
+            ->where('todos.0.title', $latestTodo->title)
+            ->where('todos.1.title', $oldestTodo->title),
+        );
 });
 
 test('users can create a todo', function () {
@@ -49,7 +70,7 @@ test('todo title is required', function () {
     $user = User::factory()->create();
 
     $response = $this->actingAs($user)->post(route('todos.store'), [
-        'title' => '',
+        'title' => '   ',
     ]);
 
     $response->assertSessionHasErrors('title');
@@ -69,7 +90,9 @@ test('users can toggle a todo', function () {
     $user = User::factory()->create();
     $todo = Todo::factory()->for($user)->create(['is_completed' => false]);
 
-    $response = $this->actingAs($user)->patch(route('todos.update', $todo));
+    $response = $this->actingAs($user)->patch(route('todos.update', $todo), [
+        'is_completed' => true,
+    ]);
 
     $response->assertRedirect();
     expect($todo->fresh()->is_completed)->toBeTrue();
@@ -79,10 +102,54 @@ test('users can toggle a completed todo back to incomplete', function () {
     $user = User::factory()->create();
     $todo = Todo::factory()->for($user)->completed()->create();
 
-    $response = $this->actingAs($user)->patch(route('todos.update', $todo));
+    $response = $this->actingAs($user)->patch(route('todos.update', $todo), [
+        'is_completed' => false,
+    ]);
 
     $response->assertRedirect();
     expect($todo->fresh()->is_completed)->toBeFalse();
+});
+
+test('users can update a todo title', function () {
+    $user = User::factory()->create();
+    $todo = Todo::factory()->for($user)->create([
+        'title' => 'Old title',
+    ]);
+
+    $response = $this->actingAs($user)->patch(route('todos.update', $todo), [
+        'title' => 'Updated title',
+    ]);
+
+    $response->assertRedirect();
+    expect($todo->fresh()->title)->toBe('Updated title');
+});
+
+test('todo title is required when updating', function () {
+    $user = User::factory()->create();
+    $todo = Todo::factory()->for($user)->create([
+        'title' => 'Original title',
+    ]);
+
+    $response = $this->actingAs($user)->patch(route('todos.update', $todo), [
+        'title' => '   ',
+    ]);
+
+    $response->assertSessionHasErrors('title');
+    expect($todo->fresh()->title)->toBe('Original title');
+});
+
+test('users cannot send an empty todo update', function () {
+    $user = User::factory()->create();
+    $todo = Todo::factory()->for($user)->create([
+        'title' => 'Original title',
+        'is_completed' => false,
+    ]);
+
+    $response = $this->actingAs($user)->patch(route('todos.update', $todo), []);
+
+    $response->assertSessionHasErrors('title');
+    expect($todo->fresh()->title)->toBe('Original title')
+        ->and($todo->fresh()->is_completed)->toBeFalse();
 });
 
 test('users can delete a todo', function () {
@@ -100,7 +167,9 @@ test('users cannot update another users todo', function () {
     $otherUser = User::factory()->create();
     $todo = Todo::factory()->for($otherUser)->create(['is_completed' => false]);
 
-    $response = $this->actingAs($user)->patch(route('todos.update', $todo));
+    $response = $this->actingAs($user)->patch(route('todos.update', $todo), [
+        'title' => 'Blocked',
+    ]);
 
     $response->assertForbidden();
     expect($todo->fresh()->is_completed)->toBeFalse();
@@ -115,4 +184,82 @@ test('users cannot delete another users todo', function () {
 
     $response->assertForbidden();
     $this->assertModelExists($todo);
+});
+
+test('users can filter todos by completion status', function () {
+    $user = User::factory()->create();
+    $completedTodo = Todo::factory()->for($user)->completed()->create([
+        'title' => 'Completed task',
+    ]);
+    Todo::factory()->for($user)->create([
+        'title' => 'Active task',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('todos.index', ['status' => 'completed']))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('filters.status', 'completed')
+            ->has('todos', 1)
+            ->where('todos.0.title', $completedTodo->title),
+        );
+});
+
+test('users can search todos by title', function () {
+    $user = User::factory()->create();
+    $matchingTodo = Todo::factory()->for($user)->create([
+        'title' => 'Write release notes',
+    ]);
+    Todo::factory()->for($user)->create([
+        'title' => 'Buy groceries',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('todos.index', ['search' => 'release']))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('filters.search', 'release')
+            ->has('todos', 1)
+            ->where('todos.0.title', $matchingTodo->title),
+        );
+});
+
+test('users can sort todos by oldest first', function () {
+    $user = User::factory()->create();
+    $oldestTodo = Todo::factory()->for($user)->create([
+        'title' => 'First task',
+        'created_at' => now()->subDays(3),
+    ]);
+    $latestTodo = Todo::factory()->for($user)->create([
+        'title' => 'Second task',
+        'created_at' => now(),
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('todos.index', ['sort' => 'oldest']))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('filters.sort', 'oldest')
+            ->where('todos.0.title', $oldestTodo->title)
+            ->where('todos.1.title', $latestTodo->title),
+        );
+});
+
+test('users can sort todos alphabetically', function () {
+    $user = User::factory()->create();
+    $alphaTodo = Todo::factory()->for($user)->create([
+        'title' => 'Alpha task',
+    ]);
+    $zebraTodo = Todo::factory()->for($user)->create([
+        'title' => 'Zebra task',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('todos.index', ['sort' => 'alphabetical']))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('filters.sort', 'alphabetical')
+            ->where('todos.0.title', $alphaTodo->title)
+            ->where('todos.1.title', $zebraTodo->title),
+        );
 });

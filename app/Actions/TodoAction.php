@@ -15,11 +15,12 @@ class TodoAction
         return $user->todos()->create($attributes);
     }
 
-    public function toggle(Todo $todo): void
+    /**
+     * @param  array{is_completed?: bool, title?: string}  $attributes
+     */
+    public function update(Todo $todo, array $attributes): void
     {
-        $todo->update([
-            'is_completed' => ! $todo->is_completed,
-        ]);
+        $todo->update($attributes);
     }
 
     public function delete(Todo $todo): void
