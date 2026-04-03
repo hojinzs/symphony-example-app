@@ -1,8 +1,9 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { Check, Pencil, RotateCcw, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import TodoController from '@/actions/App/Http/Controllers/TodoController';
+import AlertError from '@/components/alert-error';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -15,6 +16,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { Spinner } from '@/components/ui/spinner';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { index } from '@/routes/todos';
 
@@ -54,6 +56,10 @@ export default function TodosIndex({
         ...filters,
     });
     const [editingTodoId, setEditingTodoId] = useState<number | null>(null);
+    const [pendingAction, setPendingAction] = useState<
+        'filtering' | 'toggling' | 'deleting' | null
+    >(null);
+    const { flash } = usePage().props;
 
     function handleSubmit(e: FormEvent) {
         e.preventDefault();
@@ -70,6 +76,8 @@ export default function TodosIndex({
             preserveScroll: true,
             preserveState: true,
             replace: true,
+            onStart: () => setPendingAction('filtering'),
+            onFinish: () => setPendingAction(null),
         });
     }
 
@@ -78,7 +86,10 @@ export default function TodosIndex({
         applyFilters(activeFilters);
     }
 
-    function updateFilter<K extends keyof TodoFilters>(key: K, value: TodoFilters[K]) {
+    function updateFilter<K extends keyof TodoFilters>(
+        key: K,
+        value: TodoFilters[K],
+    ) {
         const nextFilters = {
             ...activeFilters,
             [key]: value,
@@ -94,11 +105,15 @@ export default function TodosIndex({
     function resetFilters() {
         setActiveFilters(defaultFilters);
 
-        router.get(index(), {}, {
-            preserveScroll: true,
-            preserveState: true,
-            replace: true,
-        });
+        router.get(
+            index(),
+            {},
+            {
+                preserveScroll: true,
+                preserveState: true,
+                replace: true,
+            },
+        );
     }
 
     function toggleTodo(todo: Todo) {
@@ -109,6 +124,8 @@ export default function TodosIndex({
             },
             {
                 preserveScroll: true,
+                onStart: () => setPendingAction('toggling'),
+                onFinish: () => setPendingAction(null),
             },
         );
     }
@@ -135,6 +152,8 @@ export default function TodosIndex({
     function deleteTodo(todo: Todo) {
         router.delete(TodoController.destroy(todo.id).url, {
             preserveScroll: true,
+            onStart: () => setPendingAction('deleting'),
+            onFinish: () => setPendingAction(null),
         });
     }
 
@@ -143,24 +162,56 @@ export default function TodosIndex({
         (filters.search ?? '') !== '' ||
         filters.sort !== defaultFilters.sort ||
         filters.status !== defaultFilters.status;
+    const loadingMessage = createForm.processing
+        ? 'Saving your todo...'
+        : editForm.processing
+          ? 'Updating your todo...'
+          : pendingAction === 'filtering'
+            ? 'Refreshing your todos...'
+            : pendingAction === 'toggling'
+              ? 'Updating completion state...'
+              : pendingAction === 'deleting'
+                ? 'Removing todo...'
+                : null;
 
     return (
         <>
             <Head title="Todos" />
 
             <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4">
+                {flash.error && (
+                    <AlertError
+                        title="We couldn't finish that todo request."
+                        errors={[flash.error]}
+                    />
+                )}
+
+                {loadingMessage && (
+                    <div
+                        className="flex items-center gap-2 rounded-2xl border bg-card/60 px-4 py-3 text-sm text-muted-foreground shadow-xs"
+                        role="status"
+                        aria-live="polite"
+                    >
+                        <Spinner className="size-4" />
+                        <span>{loadingMessage}</span>
+                    </div>
+                )}
+
                 <div className="rounded-2xl border bg-card/60 p-6 shadow-xs">
                     <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                         <div className="space-y-1">
-                            <h1 className="text-3xl font-semibold tracking-tight">Todos</h1>
-                            <p className="text-muted-foreground text-sm">
-                                Keep the list tidy with inline edits, focused filters, and quick
-                                sorting.
+                            <h1 className="text-3xl font-semibold tracking-tight">
+                                Todos
+                            </h1>
+                            <p className="text-sm text-muted-foreground">
+                                Keep the list tidy with inline edits, focused
+                                filters, and quick sorting.
                             </p>
                         </div>
-                        <p className="text-muted-foreground text-sm">
-                            Showing {todos.length} item{todos.length === 1 ? '' : 's'} and{' '}
-                            {completedCount} completed
+                        <p className="text-sm text-muted-foreground">
+                            Showing {todos.length} item
+                            {todos.length === 1 ? '' : 's'} and {completedCount}{' '}
+                            completed
                         </p>
                     </div>
                 </div>
@@ -172,7 +223,7 @@ export default function TodosIndex({
                     >
                         <div className="space-y-1">
                             <h2 className="font-medium">Add a todo</h2>
-                            <p className="text-muted-foreground text-sm">
+                            <p className="text-sm text-muted-foreground">
                                 New items land at the top by default.
                             </p>
                         </div>
@@ -182,10 +233,15 @@ export default function TodosIndex({
                                 type="text"
                                 placeholder="Add a new todo..."
                                 value={createForm.data.title}
-                                onChange={(e) => createForm.setData('title', e.target.value)}
+                                onChange={(e) =>
+                                    createForm.setData('title', e.target.value)
+                                }
                                 className="flex-1"
                             />
-                            <Button type="submit" disabled={createForm.processing}>
+                            <Button
+                                type="submit"
+                                disabled={createForm.processing}
+                            >
                                 Add
                             </Button>
                         </div>
@@ -197,9 +253,12 @@ export default function TodosIndex({
                         className="space-y-4 rounded-2xl border bg-card/60 p-5 shadow-xs"
                     >
                         <div className="flex flex-col gap-1">
-                            <h2 className="font-medium">Find the right items</h2>
-                            <p className="text-muted-foreground text-sm">
-                                Narrow the list by status, title, or display order.
+                            <h2 className="font-medium">
+                                Find the right items
+                            </h2>
+                            <p className="text-sm text-muted-foreground">
+                                Narrow the list by status, title, or display
+                                order.
                             </p>
                         </div>
 
@@ -210,7 +269,9 @@ export default function TodosIndex({
                                     id="todo-search"
                                     type="search"
                                     value={activeFilters.search ?? ''}
-                                    onChange={(e) => updateFilter('search', e.target.value)}
+                                    onChange={(e) =>
+                                        updateFilter('search', e.target.value)
+                                    }
                                     placeholder="Search by title"
                                 />
                             </div>
@@ -219,17 +280,26 @@ export default function TodosIndex({
                                 <Label htmlFor="todo-sort">Sort</Label>
                                 <Select
                                     value={activeFilters.sort}
-                                    onValueChange={(value: TodoFilters['sort']) =>
-                                        updateFilter('sort', value)
-                                    }
+                                    onValueChange={(
+                                        value: TodoFilters['sort'],
+                                    ) => updateFilter('sort', value)}
                                 >
-                                    <SelectTrigger id="todo-sort" className="w-full">
+                                    <SelectTrigger
+                                        id="todo-sort"
+                                        className="w-full"
+                                    >
                                         <SelectValue placeholder="Select sort order" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="latest">Latest first</SelectItem>
-                                        <SelectItem value="oldest">Oldest first</SelectItem>
-                                        <SelectItem value="alphabetical">Alphabetical</SelectItem>
+                                        <SelectItem value="latest">
+                                            Latest first
+                                        </SelectItem>
+                                        <SelectItem value="oldest">
+                                            Oldest first
+                                        </SelectItem>
+                                        <SelectItem value="alphabetical">
+                                            Alphabetical
+                                        </SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -241,16 +311,24 @@ export default function TodosIndex({
                                 <ToggleGroup
                                     type="single"
                                     value={activeFilters.status}
-                                    onValueChange={(value: TodoFilters['status'] | '') => {
+                                    onValueChange={(
+                                        value: TodoFilters['status'] | '',
+                                    ) => {
                                         if (value !== '') {
                                             updateFilter('status', value);
                                         }
                                     }}
                                     variant="outline"
                                 >
-                                    <ToggleGroupItem value="all">All</ToggleGroupItem>
-                                    <ToggleGroupItem value="active">Active</ToggleGroupItem>
-                                    <ToggleGroupItem value="completed">Completed</ToggleGroupItem>
+                                    <ToggleGroupItem value="all">
+                                        All
+                                    </ToggleGroupItem>
+                                    <ToggleGroupItem value="active">
+                                        Active
+                                    </ToggleGroupItem>
+                                    <ToggleGroupItem value="completed">
+                                        Completed
+                                    </ToggleGroupItem>
                                 </ToggleGroup>
                             </div>
 
@@ -258,7 +336,11 @@ export default function TodosIndex({
                                 <Button type="submit" variant="outline">
                                     Apply search
                                 </Button>
-                                <Button type="button" variant="ghost" onClick={resetFilters}>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={resetFilters}
+                                >
                                     <RotateCcw className="size-4" />
                                     Reset
                                 </Button>
@@ -275,7 +357,7 @@ export default function TodosIndex({
                                     ? 'No todos match the current filters.'
                                     : 'No todos yet.'}
                             </p>
-                            <p className="text-muted-foreground mt-2 text-sm">
+                            <p className="mt-2 text-sm text-muted-foreground">
                                 {hasActiveFilters
                                     ? 'Adjust the filters or search term to broaden the results.'
                                     : 'Add one above to get started.'}
@@ -284,7 +366,10 @@ export default function TodosIndex({
                     )}
 
                     {todos.map((todo) => (
-                        <div key={todo.id} className="rounded-2xl border bg-card/60 p-4 shadow-xs">
+                        <div
+                            key={todo.id}
+                            className="rounded-2xl border bg-card/60 p-4 shadow-xs"
+                        >
                             <div className="flex items-start gap-3">
                                 <Checkbox
                                     checked={todo.is_completed}
@@ -304,16 +389,23 @@ export default function TodosIndex({
                                             <Input
                                                 value={editForm.data.title}
                                                 onChange={(e) =>
-                                                    editForm.setData('title', e.target.value)
+                                                    editForm.setData(
+                                                        'title',
+                                                        e.target.value,
+                                                    )
                                                 }
                                                 autoFocus
                                             />
-                                            <InputError message={editForm.errors.title} />
+                                            <InputError
+                                                message={editForm.errors.title}
+                                            />
                                             <div className="flex gap-2">
                                                 <Button
                                                     type="submit"
                                                     size="sm"
-                                                    disabled={editForm.processing}
+                                                    disabled={
+                                                        editForm.processing
+                                                    }
                                                 >
                                                     <Check className="size-4" />
                                                     Save
@@ -337,8 +429,10 @@ export default function TodosIndex({
                                                 >
                                                     {todo.title}
                                                 </p>
-                                                <p className="text-muted-foreground text-xs">
-                                                    {todo.is_completed ? 'Completed' : 'In progress'}
+                                                <p className="text-xs text-muted-foreground">
+                                                    {todo.is_completed
+                                                        ? 'Completed'
+                                                        : 'In progress'}
                                                 </p>
                                             </div>
 
@@ -347,7 +441,9 @@ export default function TodosIndex({
                                                     type="button"
                                                     variant="ghost"
                                                     size="icon"
-                                                    onClick={() => startEditing(todo)}
+                                                    onClick={() =>
+                                                        startEditing(todo)
+                                                    }
                                                 >
                                                     <Pencil className="size-4" />
                                                 </Button>
@@ -355,7 +451,9 @@ export default function TodosIndex({
                                                     type="button"
                                                     variant="ghost"
                                                     size="icon"
-                                                    onClick={() => deleteTodo(todo)}
+                                                    onClick={() =>
+                                                        deleteTodo(todo)
+                                                    }
                                                 >
                                                     <Trash2 className="size-4" />
                                                 </Button>
